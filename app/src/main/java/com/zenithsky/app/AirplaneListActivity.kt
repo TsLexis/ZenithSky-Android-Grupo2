@@ -1,8 +1,16 @@
 package com.zenithsky.app
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -37,10 +46,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.zenithsky.app.data.model.AirlineDto
 import com.zenithsky.app.data.model.AirplaneDto
 import com.zenithsky.app.data.model.AirplaneTypeDto
@@ -51,6 +62,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import retrofit2.Response
 import java.io.IOException
+
+private const val TAG = "AirplaneListActivity"
+
+// Desde Android 17 (API 37) el acceso a la red local (incluido 10.0.2.2 del emulador) requiere este permiso
+private const val LOCAL_NETWORK_PERMISSION = Manifest.permission.ACCESS_LOCAL_NETWORK
+private const val LOCAL_NETWORK_PERMISSION_SDK = 37
 
 class AirplaneListActivity : ComponentActivity() {
 
@@ -81,7 +98,39 @@ fun AirplaneListScreen() {
     var filtersErrorMessage by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
 
+    val context = LocalContext.current
+    var hasNetworkPermission by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < LOCAL_NETWORK_PERMISSION_SDK ||
+                ContextCompat.checkSelfPermission(context, LOCAL_NETWORK_PERMISSION) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Log.w(TAG, "Permiso ACCESS_LOCAL_NETWORK denegado")
+        }
+        hasNetworkPermission = granted
+    }
+    val formLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            reloadKey++
+        }
+    }
+
     LaunchedEffect(Unit) {
+        if (!hasNetworkPermission) {
+            permissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+        }
+    }
+
+    LaunchedEffect(hasNetworkPermission) {
+        if (!hasNetworkPermission) return@LaunchedEffect
+        filtersErrorMessage = null
         try {
             coroutineScope {
                 val typesRequest = async { ApiClient.airplaneTypeService.getAirplaneTypes() }
@@ -97,17 +146,23 @@ fun AirplaneListScreen() {
                     airlines = airlinesResponse.body().orEmpty()
                 }
                 if (!typesResponse.isSuccessful || !airlinesResponse.isSuccessful) {
+                    Log.e(
+                        TAG,
+                        "Error HTTP en filtros: tipos=${typesResponse.code()}, aerolíneas=${airlinesResponse.code()}"
+                    )
                     filtersErrorMessage = "No se pudieron cargar todas las opciones de filtrado."
                 }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.e(TAG, "Error al cargar las opciones de filtrado", e)
             filtersErrorMessage = "No se pudieron cargar las opciones de filtrado."
         }
     }
 
-    LaunchedEffect(selectedTypeId, selectedAirlineId, reloadKey) {
+    LaunchedEffect(selectedTypeId, selectedAirlineId, reloadKey, hasNetworkPermission) {
+        if (!hasNetworkPermission) return@LaunchedEffect
         isLoading = true
         errorMessage = null
         try {
@@ -118,15 +173,18 @@ fun AirplaneListScreen() {
             if (response.isSuccessful) {
                 airplanes = response.body().orEmpty()
             } else {
+                Log.e(TAG, "Error HTTP al cargar aviones: ${response.code()}")
                 airplanes = emptyList()
                 errorMessage = serverErrorMessage(response)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
+            Log.e(TAG, "Error de E/S al cargar aviones", e)
             airplanes = emptyList()
             errorMessage = "No se pudo conectar con el servidor. Verifique su conexión e intente de nuevo."
         } catch (e: Exception) {
+            Log.e(TAG, "Error inesperado al cargar aviones", e)
             airplanes = emptyList()
             errorMessage = "Ocurrió un error inesperado al cargar los aviones."
         } finally {
@@ -139,6 +197,17 @@ fun AirplaneListScreen() {
             TopAppBar(
                 title = { Text("Aviones") }
             )
+        },
+        floatingActionButton = {
+            if (hasNetworkPermission) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        formLauncher.launch(Intent(context, AirplaneFormActivity::class.java))
+                    }
+                ) {
+                    Text("Agregar avión")
+                }
+            }
         }
     ) { innerPadding ->
 
@@ -206,6 +275,17 @@ fun AirplaneListScreen() {
                     .weight(1f)
             ) {
                 when {
+                    !hasNetworkPermission -> {
+                        AirplaneMessageState(
+                            message = "Se necesita el permiso de acceso a la red local para conectarse con el servidor. " +
+                                "Si lo denegó definitivamente, actívelo en Ajustes > Aplicaciones > ZenithSky > Permisos.",
+                            isError = true,
+                            actionLabel = "Conceder permiso",
+                            onAction = { permissionLauncher.launch(LOCAL_NETWORK_PERMISSION) },
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+
                     isLoading -> {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.Center)
@@ -216,7 +296,8 @@ fun AirplaneListScreen() {
                         AirplaneMessageState(
                             message = errorMessage.orEmpty(),
                             isError = true,
-                            onRetry = { reloadKey++ },
+                            actionLabel = "Reintentar",
+                            onAction = { reloadKey++ },
                             modifier = Modifier.align(Alignment.Center)
                         )
                     }
@@ -235,7 +316,7 @@ fun AirplaneListScreen() {
 
                     else -> {
                         LazyColumn(
-                            contentPadding = PaddingValues(bottom = 16.dp),
+                            contentPadding = PaddingValues(bottom = 88.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(airplanes, key = { it.airplane_id }) { airplane ->
@@ -336,7 +417,8 @@ private fun AirplaneMessageState(
     message: String,
     isError: Boolean,
     modifier: Modifier = Modifier,
-    onRetry: (() -> Unit)? = null
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
 
     Column(
@@ -353,12 +435,12 @@ private fun AirplaneMessageState(
             }
         )
 
-        if (onRetry != null) {
+        if (actionLabel != null && onAction != null) {
             Button(
-                onClick = onRetry,
+                onClick = onAction,
                 modifier = Modifier.padding(top = 12.dp)
             ) {
-                Text("Reintentar")
+                Text(actionLabel)
             }
         }
     }

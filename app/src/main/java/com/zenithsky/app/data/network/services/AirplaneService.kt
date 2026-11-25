@@ -26,7 +26,7 @@ interface AirplaneService {
     @POST("api/airplanes")
     suspend fun createAirplane(
         @Body airplane: AirplaneDto
-    ): Response<AirplaneDto>
+    ): Response<Unit>
 
     @PUT("api/airplanes/{id}")
     suspend fun updateAirplane(
