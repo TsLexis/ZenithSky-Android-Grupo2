@@ -32,7 +32,7 @@ interface AirplaneService {
     suspend fun updateAirplane(
         @Path("id") id: Int,
         @Body airplane: AirplaneDto
-    ): Response<AirplaneDto>
+    ): Response<Unit>
 
     @DELETE("api/airplanes/{id}")
     suspend fun deleteAirplane(

@@ -59,16 +59,27 @@ private const val AIRPLANE_FORM_TAG = "AirplaneFormActivity"
 
 class AirplaneFormActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_AIRPLANE_ID = "airplane_id"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val airplaneId = intent.getIntExtra(EXTRA_AIRPLANE_ID, -1).takeIf { it > 0 }
 
         setContent {
             ZenithSkyTheme {
                 AirplaneFormScreen(
+                    airplaneId = airplaneId,
                     onSaved = {
                         Toast.makeText(
                             this,
-                            "Avión registrado correctamente",
+                            if (airplaneId != null) {
+                                "Avión actualizado correctamente"
+                            } else {
+                                "Avión registrado correctamente"
+                            },
                             Toast.LENGTH_SHORT
                         ).show()
                         setResult(RESULT_OK)
@@ -84,9 +95,12 @@ class AirplaneFormActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirplaneFormScreen(
+    airplaneId: Int?,
     onSaved: () -> Unit,
     onCancel: () -> Unit
 ) {
+
+    val isEditMode = airplaneId != null
 
     var capacityText by rememberSaveable { mutableStateOf("") }
     var selectedTypeId by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -99,10 +113,49 @@ fun AirplaneFormScreen(
     var catalogsErrorMessage by remember { mutableStateOf<String?>(null) }
     var catalogsReloadKey by remember { mutableIntStateOf(0) }
 
+    var isAirplaneLoaded by rememberSaveable { mutableStateOf(false) }
+    var isLoadingAirplane by remember { mutableStateOf(isEditMode && !isAirplaneLoaded) }
+    var airplaneErrorMessage by remember { mutableStateOf<String?>(null) }
+    var airplaneReloadKey by remember { mutableIntStateOf(0) }
+
     var isSaving by remember { mutableStateOf(false) }
     var saveErrorMessage by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(airplaneId, airplaneReloadKey) {
+        if (airplaneId == null || isAirplaneLoaded) return@LaunchedEffect
+        isLoadingAirplane = true
+        airplaneErrorMessage = null
+        try {
+            val response = ApiClient.airplaneService.getAirplaneById(airplaneId)
+            val airplane = response.body()
+            if (response.isSuccessful && airplane != null) {
+                // Solo se completan los campos que el usuario aún no ha modificado
+                if (capacityText.isBlank()) capacityText = airplane.capacity.toString()
+                if (selectedTypeId == null) selectedTypeId = airplane.type_id
+                if (selectedAirlineId == null) selectedAirlineId = airplane.airline_id
+                isAirplaneLoaded = true
+            } else {
+                Log.e(AIRPLANE_FORM_TAG, "Error HTTP al cargar el avión $airplaneId: ${response.code()}")
+                airplaneErrorMessage = if (response.code() == 404) {
+                    "El avión seleccionado ya no existe. Es posible que haya sido eliminado."
+                } else {
+                    "No se pudo cargar la información del avión (código ${response.code()})."
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            Log.e(AIRPLANE_FORM_TAG, "Error de E/S al cargar el avión $airplaneId", e)
+            airplaneErrorMessage = "No se pudo conectar con el servidor para cargar el avión."
+        } catch (e: Exception) {
+            Log.e(AIRPLANE_FORM_TAG, "Error inesperado al cargar el avión $airplaneId", e)
+            airplaneErrorMessage = "Ocurrió un error inesperado al cargar el avión."
+        } finally {
+            isLoadingAirplane = false
+        }
+    }
 
     LaunchedEffect(catalogsReloadKey) {
         isLoadingCatalogs = true
@@ -163,36 +216,44 @@ fun AirplaneFormScreen(
         isSaving = true
         scope.launch {
             var saved = false
+            val operation = if (isEditMode) "actualizar" else "crear"
             try {
-                val response = ApiClient.airplaneService.createAirplane(
-                    AirplaneDto(
-                        airplane_id = 0,
-                        capacity = capacity,
-                        type_id = typeId,
-                        airline_id = airlineId,
-                        identifier = null,
-                        description = null,
-                        airlinename = null
-                    )
+                val airplane = AirplaneDto(
+                    airplane_id = airplaneId ?: 0,
+                    capacity = capacity,
+                    type_id = typeId,
+                    airline_id = airlineId,
+                    identifier = null,
+                    description = null,
+                    airlinename = null
                 )
+                val response = if (airplaneId != null) {
+                    ApiClient.airplaneService.updateAirplane(airplaneId, airplane)
+                } else {
+                    ApiClient.airplaneService.createAirplane(airplane)
+                }
                 if (response.isSuccessful) {
                     saved = true
                     onSaved()
                 } else {
                     Log.e(
                         AIRPLANE_FORM_TAG,
-                        "Error HTTP al crear avión: ${response.code()} ${response.errorBody()?.string()?.take(500)}"
+                        "Error HTTP al $operation avión: ${response.code()} ${response.errorBody()?.string()?.take(500)}"
                     )
-                    saveErrorMessage = createAirplaneErrorMessage(response.code())
+                    saveErrorMessage = saveAirplaneErrorMessage(response.code(), isEditMode)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
-                Log.e(AIRPLANE_FORM_TAG, "Error de E/S al crear avión", e)
+                Log.e(AIRPLANE_FORM_TAG, "Error de E/S al $operation avión", e)
                 saveErrorMessage = "No se pudo conectar con el servidor. Verifique su conexión e intente de nuevo."
             } catch (e: Exception) {
-                Log.e(AIRPLANE_FORM_TAG, "Error inesperado al crear avión", e)
-                saveErrorMessage = "Ocurrió un error inesperado al registrar el avión."
+                Log.e(AIRPLANE_FORM_TAG, "Error inesperado al $operation avión", e)
+                saveErrorMessage = if (isEditMode) {
+                    "Ocurrió un error inesperado al actualizar el avión."
+                } else {
+                    "Ocurrió un error inesperado al registrar el avión."
+                }
             } finally {
                 if (!saved) {
                     isSaving = false
@@ -204,7 +265,7 @@ fun AirplaneFormScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Agregar avión") }
+                title = { Text(if (isEditMode) "Editar avión" else "Agregar avión") }
             )
         }
     ) { innerPadding ->
@@ -218,14 +279,24 @@ fun AirplaneFormScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            if (isLoadingCatalogs) {
+            if (isLoadingCatalogs || isLoadingAirplane) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("Cargando opciones...")
+                    Text(if (isLoadingAirplane) "Cargando datos del avión..." else "Cargando opciones...")
+                }
+            }
+
+            airplaneErrorMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(onClick = { airplaneReloadKey++ }) {
+                    Text("Reintentar")
                 }
             }
 
@@ -259,7 +330,7 @@ fun AirplaneFormScreen(
                 } else {
                     null
                 },
-                enabled = !isSaving
+                enabled = !isSaving && !isLoadingAirplane
             )
 
             saveErrorMessage?.let { message ->
@@ -271,7 +342,8 @@ fun AirplaneFormScreen(
 
             Button(
                 onClick = { submit() },
-                enabled = !isSaving && !isLoadingCatalogs,
+                enabled = !isSaving && !isLoadingCatalogs &&
+                    (!isEditMode || isAirplaneLoaded),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (isSaving) {
@@ -283,7 +355,7 @@ fun AirplaneFormScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Text("Guardando...")
                 } else {
-                    Text("Guardar avión")
+                    Text(if (isEditMode) "Guardar cambios" else "Guardar avión")
                 }
             }
 
@@ -431,12 +503,17 @@ private fun capacityValidationMessage(text: String): String? {
     }
 }
 
-private fun createAirplaneErrorMessage(code: Int): String {
+private fun saveAirplaneErrorMessage(code: Int, isEditMode: Boolean): String {
+    val action = if (isEditMode) "actualizar" else "registrar"
     return when (code) {
         400 -> "Los datos enviados no son válidos. Revise la información e intente de nuevo."
-        404 -> "El tipo de avión o la aerolínea seleccionada no existe."
-        409 -> "No se pudo registrar el avión porque entra en conflicto con datos existentes."
+        404 -> if (isEditMode) {
+            "El avión ya no existe. Es posible que haya sido eliminado."
+        } else {
+            "El tipo de avión o la aerolínea seleccionada no existe."
+        }
+        409 -> "No se pudo $action el avión porque entra en conflicto con datos existentes."
         in 500..599 -> "Error interno del servidor. Intente más tarde."
-        else -> "No se pudo registrar el avión (código $code)."
+        else -> "No se pudo $action el avión (código $code)."
     }
 }

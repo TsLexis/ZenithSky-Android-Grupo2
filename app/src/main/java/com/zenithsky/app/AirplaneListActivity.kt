@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -21,8 +22,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +65,7 @@ import com.zenithsky.app.ui.theme.ZenithSkyTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import retrofit2.Response
 import java.io.IOException
 
@@ -158,6 +164,46 @@ fun AirplaneListScreen() {
         } catch (e: Exception) {
             Log.e(TAG, "Error al cargar las opciones de filtrado", e)
             filtersErrorMessage = "No se pudieron cargar las opciones de filtrado."
+        }
+    }
+
+    var airplanePendingDelete by remember { mutableStateOf<AirplaneDto?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun deleteAirplane(airplane: AirplaneDto) {
+        if (isDeleting) return
+        isDeleting = true
+        scope.launch {
+            val message = try {
+                val response = ApiClient.airplaneService.deleteAirplane(airplane.airplane_id)
+                if (response.isSuccessful) {
+                    airplanes = airplanes.filterNot { it.airplane_id == airplane.airplane_id }
+                    reloadKey++
+                    "Avión eliminado correctamente"
+                } else {
+                    Log.e(
+                        TAG,
+                        "Error HTTP al eliminar avión ${airplane.airplane_id}: ${response.code()} " +
+                            "${response.errorBody()?.string()?.take(500)}"
+                    )
+                    if (response.code() == 404) {
+                        reloadKey++
+                    }
+                    deleteAirplaneErrorMessage(response.code())
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                Log.e(TAG, "Error de E/S al eliminar avión ${airplane.airplane_id}", e)
+                "No se pudo conectar con el servidor. El avión no fue eliminado."
+            } catch (e: Exception) {
+                Log.e(TAG, "Error inesperado al eliminar avión ${airplane.airplane_id}", e)
+                "Ocurrió un error inesperado al eliminar el avión."
+            }
+            isDeleting = false
+            airplanePendingDelete = null
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -320,13 +366,65 @@ fun AirplaneListScreen() {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(airplanes, key = { it.airplane_id }) { airplane ->
-                                AirplaneItem(airplane = airplane)
+                                AirplaneItem(
+                                    airplane = airplane,
+                                    onEdit = {
+                                        formLauncher.launch(
+                                            Intent(context, AirplaneFormActivity::class.java)
+                                                .putExtra(AirplaneFormActivity.EXTRA_AIRPLANE_ID, airplane.airplane_id)
+                                        )
+                                    },
+                                    onDelete = { airplanePendingDelete = airplane }
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    airplanePendingDelete?.let { airplane ->
+        AlertDialog(
+            onDismissRequest = { if (!isDeleting) airplanePendingDelete = null },
+            title = { Text("Eliminar avión") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Avión #${airplane.airplane_id} - ${airplane.identifier ?: "Tipo no disponible"}, " +
+                            "${airplane.capacity} pasajeros",
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("¿Está seguro de que desea eliminar este avión? Esta acción no se puede deshacer.")
+                    if (isDeleting) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Eliminando...")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { deleteAirplane(airplane) },
+                    enabled = !isDeleting
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { airplanePendingDelete = null },
+                    enabled = !isDeleting
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -388,7 +486,11 @@ private fun AirplaneFilterDropdown(
 }
 
 @Composable
-fun AirplaneItem(airplane: AirplaneDto) {
+fun AirplaneItem(
+    airplane: AirplaneDto,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
 
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -408,6 +510,24 @@ fun AirplaneItem(airplane: AirplaneDto) {
             Text("Tipo: ${airplane.identifier ?: "No disponible"}")
             Text("Descripción: ${airplane.description ?: "No disponible"}")
             Text("Aerolínea: ${airplane.airlinename ?: "No disponible"}")
+
+            if (onEdit != null || onDelete != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    onEdit?.let {
+                        TextButton(onClick = it) {
+                            Text("Editar")
+                        }
+                    }
+                    onDelete?.let {
+                        TextButton(onClick = it) {
+                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -443,6 +563,15 @@ private fun AirplaneMessageState(
                 Text(actionLabel)
             }
         }
+    }
+}
+
+private fun deleteAirplaneErrorMessage(code: Int): String {
+    return when (code) {
+        404 -> "El avión ya no existe. La lista se actualizará."
+        409 -> "El servidor no permitió eliminar el avión porque está relacionado con otros datos."
+        in 500..599 -> "Error interno del servidor. El avión no fue eliminado."
+        else -> "No se pudo eliminar el avión (código $code)."
     }
 }
 
