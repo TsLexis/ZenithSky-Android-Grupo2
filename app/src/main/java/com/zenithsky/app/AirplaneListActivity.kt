@@ -34,6 +34,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -42,6 +43,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,11 +54,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.zenithsky.app.data.local.database.ZenithSkyDatabase
+import com.zenithsky.app.data.local.entity.AvionDestacado
+import com.zenithsky.app.data.local.entity.OperacionLog
 import com.zenithsky.app.data.model.AirlineDto
 import com.zenithsky.app.data.model.AirplaneDto
 import com.zenithsky.app.data.model.AirplaneTypeDto
@@ -80,9 +88,11 @@ class AirplaneListActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val database = ZenithSkyDatabase.getDatabase(applicationContext)
+
         setContent {
             ZenithSkyTheme {
-                AirplaneListScreen()
+                AirplaneListScreen(database)
             }
         }
     }
@@ -90,7 +100,7 @@ class AirplaneListActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AirplaneListScreen() {
+fun AirplaneListScreen(database: ZenithSkyDatabase) {
 
     var airplanes by remember { mutableStateOf<List<AirplaneDto>>(emptyList()) }
     var airplaneTypes by remember { mutableStateOf<List<AirplaneTypeDto>>(emptyList()) }
@@ -171,6 +181,29 @@ fun AirplaneListScreen() {
     var isDeleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val favoriteDao = remember(database) { database.avionDestacadoDao() }
+    val favorites by remember(favoriteDao) { favoriteDao.obtenerTodos() }
+        .collectAsState(initial = emptyList())
+    val favoriteIds = remember(favorites) { favorites.map { it.id }.toSet() }
+
+    fun toggleFavorite(airplaneId: Int, favorite: AvionDestacado?) {
+        val isFavorite = airplaneId in favoriteIds
+        scope.launch {
+            try {
+                if (isFavorite) {
+                    favoriteDao.eliminarPorId(airplaneId)
+                } else if (favorite != null) {
+                    favoriteDao.insertar(favorite)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al actualizar el favorito del avión $airplaneId", e)
+                Toast.makeText(context, "No se pudieron actualizar los favoritos locales.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     fun deleteAirplane(airplane: AirplaneDto) {
         if (isDeleting) return
         isDeleting = true
@@ -180,7 +213,11 @@ fun AirplaneListScreen() {
                 if (response.isSuccessful) {
                     airplanes = airplanes.filterNot { it.airplane_id == airplane.airplane_id }
                     reloadKey++
-                    "Avión eliminado correctamente"
+                    if (saveDeletedAirplaneLocally(database, airplane)) {
+                        "Avión eliminado correctamente"
+                    } else {
+                        "Avión eliminado correctamente, pero no se pudo actualizar el registro local."
+                    }
                 } else {
                     Log.e(
                         TAG,
@@ -338,6 +375,34 @@ fun AirplaneListScreen() {
                         )
                     }
 
+                    errorMessage != null && favorites.isNotEmpty() -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            AirplaneMessageState(
+                                message = errorMessage.orEmpty(),
+                                isError = true,
+                                actionLabel = "Reintentar",
+                                onAction = { reloadKey++ },
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                            Text(
+                                text = "Aviones favoritos guardados en el dispositivo",
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            LazyColumn(
+                                contentPadding = PaddingValues(bottom = 88.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(favorites, key = { it.id }) { favorite ->
+                                    FavoriteAirplaneItem(
+                                        favorite = favorite,
+                                        onRemoveFavorite = { toggleFavorite(favorite.id, null) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     errorMessage != null -> {
                         AirplaneMessageState(
                             message = errorMessage.orEmpty(),
@@ -368,6 +433,10 @@ fun AirplaneListScreen() {
                             items(airplanes, key = { it.airplane_id }) { airplane ->
                                 AirplaneItem(
                                     airplane = airplane,
+                                    isFavorite = airplane.airplane_id in favoriteIds,
+                                    onToggleFavorite = {
+                                        toggleFavorite(airplane.airplane_id, airplane.toFavorite())
+                                    },
                                     onEdit = {
                                         formLauncher.launch(
                                             Intent(context, AirplaneFormActivity::class.java)
@@ -488,6 +557,8 @@ private fun AirplaneFilterDropdown(
 @Composable
 fun AirplaneItem(
     airplane: AirplaneDto,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -498,11 +569,17 @@ fun AirplaneItem(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = "Avión #${airplane.airplane_id}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Avión #${airplane.airplane_id}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                onToggleFavorite?.let {
+                    FavoriteToggleButton(isFavorite = isFavorite, onClick = it)
+                }
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -563,6 +640,91 @@ private fun AirplaneMessageState(
                 Text(actionLabel)
             }
         }
+    }
+}
+
+@Composable
+private fun FavoriteAirplaneItem(
+    favorite: AvionDestacado,
+    onRemoveFavorite: () -> Unit
+) {
+
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Avión #${favorite.id}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("Modelo: ${favorite.modelo}")
+                Text("Capacidad: ${favorite.capacidad} pasajeros")
+            }
+            FavoriteToggleButton(isFavorite = true, onClick = onRemoveFavorite)
+        }
+    }
+}
+
+@Composable
+private fun FavoriteToggleButton(
+    isFavorite: Boolean,
+    onClick: () -> Unit
+) {
+
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.semantics {
+            contentDescription = if (isFavorite) "Quitar de favoritos" else "Marcar como favorito"
+        }
+    ) {
+        Text(
+            text = if (isFavorite) "★" else "☆",
+            style = MaterialTheme.typography.headlineSmall,
+            color = if (isFavorite) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.clearAndSetSemantics {}
+        )
+    }
+}
+
+fun airplaneModelText(identifier: String?, description: String?, typeId: Int): String {
+    return listOfNotNull(identifier, description).joinToString(" - ").ifBlank { "Tipo #$typeId" }
+}
+
+private fun AirplaneDto.toFavorite(): AvionDestacado {
+    return AvionDestacado(
+        id = airplane_id,
+        modelo = airplaneModelText(identifier, description, type_id),
+        capacidad = capacity
+    )
+}
+
+// Tras un DELETE confirmado: registra la operación y elimina el favorito para no dejar referencias obsoletas
+private suspend fun saveDeletedAirplaneLocally(database: ZenithSkyDatabase, airplane: AirplaneDto): Boolean {
+    return try {
+        database.operacionLogDao().insertar(
+            OperacionLog(
+                operacion = "ELIMINAR",
+                entidad = "Avión",
+                detalle = "Avión #${airplane.airplane_id} - Capacidad: ${airplane.capacity}, " +
+                    "tipo: ${airplaneModelText(airplane.identifier, airplane.description, airplane.type_id)}"
+            )
+        )
+        database.avionDestacadoDao().eliminarPorId(airplane.airplane_id)
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Error al guardar los cambios locales tras eliminar el avión ${airplane.airplane_id}", e)
+        false
     }
 }
 

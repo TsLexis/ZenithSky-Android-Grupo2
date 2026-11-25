@@ -44,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.zenithsky.app.data.local.database.ZenithSkyDatabase
+import com.zenithsky.app.data.local.entity.OperacionLog
 import com.zenithsky.app.data.model.AirlineDto
 import com.zenithsky.app.data.model.AirplaneDto
 import com.zenithsky.app.data.model.AirplaneTypeDto
@@ -67,20 +69,27 @@ class AirplaneFormActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val airplaneId = intent.getIntExtra(EXTRA_AIRPLANE_ID, -1).takeIf { it > 0 }
+        val database = ZenithSkyDatabase.getDatabase(applicationContext)
 
         setContent {
             ZenithSkyTheme {
                 AirplaneFormScreen(
                     airplaneId = airplaneId,
-                    onSaved = {
+                    database = database,
+                    onSaved = { localSaved ->
+                        val message = if (airplaneId != null) {
+                            "Avión actualizado correctamente"
+                        } else {
+                            "Avión registrado correctamente"
+                        }
                         Toast.makeText(
                             this,
-                            if (airplaneId != null) {
-                                "Avión actualizado correctamente"
+                            if (localSaved) {
+                                message
                             } else {
-                                "Avión registrado correctamente"
+                                "$message, pero no se pudo guardar el registro local de la operación."
                             },
-                            Toast.LENGTH_SHORT
+                            if (localSaved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG
                         ).show()
                         setResult(RESULT_OK)
                         finish()
@@ -96,7 +105,8 @@ class AirplaneFormActivity : ComponentActivity() {
 @Composable
 fun AirplaneFormScreen(
     airplaneId: Int?,
-    onSaved: () -> Unit,
+    database: ZenithSkyDatabase,
+    onSaved: (localSaved: Boolean) -> Unit,
     onCancel: () -> Unit
 ) {
 
@@ -234,7 +244,16 @@ fun AirplaneFormScreen(
                 }
                 if (response.isSuccessful) {
                     saved = true
-                    onSaved()
+                    val localSaved = saveAirplaneLocalChanges(
+                        database = database,
+                        airplaneId = airplaneId,
+                        capacity = capacity,
+                        typeId = typeId,
+                        airlineId = airlineId,
+                        airplaneType = airplaneTypes.firstOrNull { it.type_id == typeId },
+                        airline = airlines.firstOrNull { it.airline_id == airlineId }
+                    )
+                    onSaved(localSaved)
                 } else {
                     Log.e(
                         AIRPLANE_FORM_TAG,
@@ -488,6 +507,50 @@ private fun AirplaneSelectorField(
                 )
             }
         }
+    }
+}
+
+// Registra la operación en Room y sincroniza el favorito; un fallo local no revierte la operación remota
+private suspend fun saveAirplaneLocalChanges(
+    database: ZenithSkyDatabase,
+    airplaneId: Int?,
+    capacity: Int,
+    typeId: Int,
+    airlineId: Int,
+    airplaneType: AirplaneTypeDto?,
+    airline: AirlineDto?
+): Boolean {
+    val typeText = airplaneType
+        ?.let { listOfNotNull(it.identifier, it.description).joinToString(" - ") }
+        ?: "tipo #$typeId"
+    val airlineText = airline?.let { "${it.airlinename} (${it.iata})" } ?: "aerolínea #$airlineId"
+    val details = "Capacidad: $capacity, tipo: $typeText, aerolínea: $airlineText"
+
+    return try {
+        database.operacionLogDao().insertar(
+            OperacionLog(
+                operacion = if (airplaneId != null) "ACTUALIZAR" else "CREAR",
+                entidad = "Avión",
+                detalle = if (airplaneId != null) "Avión #$airplaneId - $details" else details
+            )
+        )
+        if (airplaneId != null) {
+            val favoriteDao = database.avionDestacadoDao()
+            favoriteDao.obtenerPorId(airplaneId)?.let { favorite ->
+                favoriteDao.insertar(
+                    favorite.copy(
+                        modelo = airplaneModelText(airplaneType?.identifier, airplaneType?.description, typeId),
+                        capacidad = capacity
+                    )
+                )
+            }
+        }
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(AIRPLANE_FORM_TAG, "Error al guardar los cambios locales del avión", e)
+        false
     }
 }
 
