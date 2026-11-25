@@ -1,5 +1,6 @@
 package com.zenithsky.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -7,25 +8,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.zenithsky.app.data.model.AirlineDto
-import com.zenithsky.app.data.model.AirplaneDto
-import com.zenithsky.app.data.model.AirplaneTypeDto
-import com.zenithsky.app.data.model.AirportDto
-import com.zenithsky.app.data.network.ApiClient
 import com.zenithsky.app.ui.theme.ZenithSkyTheme
+import kotlin.jvm.java
 
 class MainActivity : ComponentActivity() {
 
@@ -34,180 +24,91 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ZenithSkyTheme {
-                ZenithSkyTestScreen()
+                MainMenu(
+                    onAirportsClick = {
+                        startActivity(
+                            Intent(
+                                this,
+                                AirportActivity::class.java
+                            )
+                        )
+                    },
+                    onAirlinesClick = {
+                        startActivity(
+                            Intent(
+                                this,
+                                AirlineActivity::class.java
+                            )
+                        )
+                    },
+                    onAirplanesClick = {
+                        startActivity(
+                            Intent(
+                                this,
+                                AirplaneActivity::class.java
+                            )
+                        )
+                    },
+                    onAirplaneTypesClick = {
+                        startActivity(
+                            Intent(
+                                this,
+                                AirplaneTypeActivity::class.java
+                            )
+                        )
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-fun ZenithSkyTestScreen() {
-
-    var airports by remember {
-        mutableStateOf<List<AirportDto>>(emptyList())
-    }
-
-    var airlines by remember {
-        mutableStateOf<List<AirlineDto>>(emptyList())
-    }
-
-    var airplanes by remember {
-        mutableStateOf<List<AirplaneDto>>(emptyList())
-    }
-
-    var airplaneTypes by remember {
-        mutableStateOf<List<AirplaneTypeDto>>(emptyList())
-    }
-
-    var loading by remember {
-        mutableStateOf(true)
-    }
-
-    var error by remember {
-        mutableStateOf<String?>(null)
-    }
-
-    LaunchedEffect(Unit) {
-
-        try {
-
-            // Obtener aeropuertos
-            val airportResponse =
-                ApiClient.airportService.getAirports()
-
-            if (airportResponse.isSuccessful) {
-                airports = airportResponse.body() ?: emptyList()
-            } else {
-                error = "Error al obtener aeropuertos: ${airportResponse.code()}"
-            }
-
-            // Obtener aerolíneas
-            val airlineResponse =
-                ApiClient.airlineService.getAirlines()
-
-            if (airlineResponse.isSuccessful) {
-                airlines = airlineResponse.body() ?: emptyList()
-            } else {
-                error = "Error al obtener aerolíneas: ${airlineResponse.code()}"
-            }
-
-            // Obtener aviones
-            val airplaneResponse =
-                ApiClient.airplaneService.getAirplanes()
-
-            if (airplaneResponse.isSuccessful) {
-                airplanes = airplaneResponse.body() ?: emptyList()
-            } else {
-                error = "Error al obtener aviones: ${airplaneResponse.code()}"
-            }
-
-            // Obtener tipos de avión
-            val airplaneTypeResponse =
-                ApiClient.airplaneTypeService.getAirplaneTypes()
-
-            if (airplaneTypeResponse.isSuccessful) {
-                airplaneTypes =
-                    airplaneTypeResponse.body() ?: emptyList()
-            } else {
-                error =
-                    "Error al obtener tipos de avión: ${airplaneTypeResponse.code()}"
-            }
-
-        } catch (e: Exception) {
-
-            error = "Error de conexión: ${e.message}"
-
-        } finally {
-
-            loading = false
-        }
-    }
+fun MainMenu(
+    onAirportsClick: () -> Unit,
+    onAirlinesClick: () -> Unit,
+    onAirplanesClick: () -> Unit,
+    onAirplaneTypesClick: () -> Unit
+) {
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+        verticalArrangement = Arrangement.Center
     ) {
 
-        when {
+        Text(
+            text = "ZenithSky"
+        )
 
-            loading -> {
+        Button(
+            onClick = onAirportsClick,
+            modifier = Modifier.padding(top = 20.dp)
+        ) {
+            Text("Aeropuertos")
+        }
 
-                CircularProgressIndicator()
-            }
+        Button(
+            onClick = onAirlinesClick,
+            modifier = Modifier.padding(top = 10.dp)
+        ) {
+            Text("Aerolíneas")
+        }
 
-            error != null -> {
+        Button(
+            onClick = onAirplanesClick,
+            modifier = Modifier.padding(top = 10.dp)
+        ) {
+            Text("Aviones")
+        }
 
-                Text(
-                    text = error ?: "Error desconocido"
-                )
-            }
-
-            else -> {
-
-                // =========================
-                // AEROPUERTOS
-                // =========================
-
-                Text(
-                    text = "Aeropuertos encontrados:"
-                )
-
-                airports.forEach { airport ->
-
-                    Text(
-                        text = "${airport.iata} - ${airport.name}"
-                    )
-                }
-
-                // =========================
-                // AEROLÍNEAS
-                // =========================
-
-                Text(
-                    text = "\nAerolíneas encontradas:"
-                )
-
-                airlines.forEach { airline ->
-
-                    Text(
-                        text = "${airline.iata} - ${airline.airlinename}"
-                    )
-                }
-
-                // =========================
-                // AVIONES
-                // =========================
-
-                Text(
-                    text = "\nAviones encontrados:"
-                )
-
-                airplanes.forEach { airplane ->
-
-                    Text(
-                        text = "ID: ${airplane.airplane_id} - Capacidad: ${airplane.capacity}"
-                    )
-                }
-
-                // =========================
-                // TIPOS DE AVIÓN
-                // =========================
-
-                Text(
-                    text = "\nTipos de avión encontrados:"
-                )
-
-                airplaneTypes.forEach { type ->
-
-                    Text(
-                        text = "${type.identifier} - ${type.description}"
-                    )
-                }
-            }
+        Button(
+            onClick = onAirplaneTypesClick,
+            modifier = Modifier.padding(top = 10.dp)
+        ) {
+            Text("Tipos de avión")
         }
     }
 }

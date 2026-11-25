@@ -10,9 +10,13 @@ import retrofit2.converter.gson.GsonConverterFactory
 // Funciona como el puente entre Android Studio y el Backend
 object ApiClient {
 
-    //10.0.2.2 permite al emulador acceder al localhost de la computadora
+    //permite al emulador acceder al localhost de la computadora
     //donde se ejecuta el backend en 5000
     //Cambiar la IP por la de cada uno para una conexión directa
+    //IP Alex: 192.168.50.130
+    //IP Evans:
+    //IP Bryan:
+    //IP Eduardo:
     private const val BASE_URL = "http://192.168.50.130:5000/"
 
     //Retrofit se encarga de realizar las peticiones HTTP entre Android Studio y el Backend
