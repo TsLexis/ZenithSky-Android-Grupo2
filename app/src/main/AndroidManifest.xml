@@ -40,6 +40,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".AirlineListActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AirlineFormActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".AirportActivity"
             android:exported="false" />
 
