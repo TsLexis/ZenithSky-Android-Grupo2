@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                         startActivity(
                             Intent(
                                 this,
-                                AirplaneActivity::class.java
+                                AirplaneListActivity::class.java
                             )
                         )
                     },
