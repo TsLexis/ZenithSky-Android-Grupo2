@@ -16,8 +16,8 @@ object ApiClient {
     //IP Alex: 192.168.50.130
     //IP Evans:
     //IP Bryan:
-    //IP Eduardo:
-    private const val BASE_URL = "http://192.168.50.130:5000/"
+    //IP Eduardo: 10.0.2.2
+    private const val BASE_URL = "http://10.0.2.2:5093/"
 
     //Retrofit se encarga de realizar las peticiones HTTP entre Android Studio y el Backend
     val retrofit: Retrofit by lazy {
