@@ -16,19 +16,11 @@
         android:theme="@style/Theme.ZenithSky">
 
         <activity
-            android:name=".AvionDestacadoActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".AirplaneListActivity"
             android:exported="false" />
 
         <activity
             android:name=".AirplaneFormActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".AirlineActivity"
             android:exported="false" />
 
         <activity
@@ -41,10 +33,6 @@
 
         <activity
             android:name=".AirportActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".OperacionLogActivity"
             android:exported="false" />
 
         <activity

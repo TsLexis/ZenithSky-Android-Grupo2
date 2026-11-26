@@ -24,6 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.zenithsky.app.ui.theme.ZenithSkyTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.zenithsky.app.data.local.database.ZenithSkyDatabase
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 
 class MainActivity : ComponentActivity() {
 
@@ -32,11 +39,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ZenithSkyTheme {
+
                 var hasPermission = remember {
                     mutableStateOf(
                         Build.VERSION.SDK_INT < 37 ||
-                                checkSelfPermission("android.permission.ACCESS_LOCAL_NETWORK") ==
-                                PackageManager.PERMISSION_GRANTED
+                                checkSelfPermission(
+                                    "android.permission.ACCESS_LOCAL_NETWORK"
+                                ) == PackageManager.PERMISSION_GRANTED
                     )
                 }
 
@@ -55,18 +64,60 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (hasPermission.value) {
+
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
+                    val database = remember {
+                        ZenithSkyDatabase.getDatabase(context)
+                    }
+
+                    val airlines by database.airlineDao()
+                        .obtenerTodas()
+                        .collectAsState(initial = emptyList())
+
+                    val airplanes by database.avionDestacadoDao()
+                        .obtenerTodos()
+                        .collectAsState(initial = emptyList())
+
+                    val operations by database.operacionLogDao()
+                        .obtenerTodos()
+                        .collectAsState(initial = emptyList())
+
                     MainMenu(
+                        airlineCount = airlines.size,
+                        airplaneCount = airplanes.size,
+                        operationCount = operations.size,
+
                         onAirportsClick = {
-                            startActivity(Intent(this, AirportListActivity::class.java))
+                            startActivity(
+                                Intent(
+                                    this,
+                                    AirportActivity::class.java
+                                )
+                            )
                         },
+
                         onAirlinesClick = {
-                            startActivity(Intent(this, AirlineListActivity::class.java))
+                            startActivity(
+                                Intent(
+                                    this,
+                                    AirlineListActivity::class.java
+                                )
+                            )
                         },
+
                         onAirplanesClick = {
-                            startActivity(Intent(this, AirplaneListActivity::class.java))
+                            startActivity(
+                                Intent(
+                                    this,
+                                    AirplaneListActivity::class.java
+                                )
+                            )
                         }
                     )
+
                 } else {
+
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -74,7 +125,10 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Text("ZenithSky necesita permiso para conectarse al servidor local.")
+
+                        Text(
+                            "ZenithSky necesita permiso para conectarse al servidor local."
+                        )
 
                         Button(
                             onClick = {
@@ -93,40 +147,77 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenu(
+    airlineCount: Int,
+    airplaneCount: Int,
+    operationCount: Int,
     onAirportsClick: () -> Unit,
     onAirlinesClick: () -> Unit,
     onAirplanesClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = "ZenithSky")
-
-        Button(
-            onClick = onAirportsClick,
-            modifier = Modifier.padding(top = 20.dp)
-        ) {
-            Text("Aeropuertos")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("ZenithSky")
+                }
+            )
         }
+    ) { innerPadding ->
 
-        Button(
-            onClick = onAirlinesClick,
-            modifier = Modifier.padding(top = 10.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("Aerolíneas")
-        }
 
-        Button(
-            onClick = onAirplanesClick,
-            modifier = Modifier.padding(top = 10.dp)
-        ) {
-            Text("Aviones")
+            Button(
+                onClick = onAirportsClick,
+                modifier = Modifier.padding(top = 20.dp)
+            ) {
+                Text("Aeropuertos")
+            }
+
+            Button(
+                onClick = onAirlinesClick,
+                modifier = Modifier.padding(top = 10.dp)
+            ) {
+                Text("Aerolíneas")
+            }
+
+            Button(
+                onClick = onAirplanesClick,
+                modifier = Modifier.padding(top = 10.dp)
+            ) {
+                Text("Aviones")
+            }
+
+            Text(
+                text = "Resumen local",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 30.dp)
+            )
+
+            Text(
+                text = "Aerolíneas guardadas: $airlineCount",
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Text(
+                text = "Aviones destacados: $airplaneCount",
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Text(
+                text = "Operaciones registradas: $operationCount",
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }
+

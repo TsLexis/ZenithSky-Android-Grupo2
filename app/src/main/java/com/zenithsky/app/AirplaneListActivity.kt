@@ -94,7 +94,10 @@ class AirplaneListActivity : ComponentActivity() {
 
         setContent {
             ZenithSkyTheme {
-                AirplaneListScreen(database)
+                AirplaneListScreen(
+                    database = database,
+                    onBackClick = { finish() }
+                )
             }
         }
     }
@@ -102,7 +105,10 @@ class AirplaneListActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AirplaneListScreen(database: ZenithSkyDatabase) {
+fun AirplaneListScreen(
+    database: ZenithSkyDatabase,
+    onBackClick: () -> Unit
+) {
 
     var airplanes by remember { mutableStateOf<List<AirplaneDto>>(emptyList()) }
     var airplaneTypes by remember { mutableStateOf<List<AirplaneTypeDto>>(emptyList()) }
@@ -285,6 +291,16 @@ fun AirplaneListScreen(database: ZenithSkyDatabase) {
                         text = "Aviones",
                         style = MaterialTheme.typography.headlineMedium
                     )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBackClick
+                    ) {
+                        Text(
+                            text = "←",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                 }
             )
         }

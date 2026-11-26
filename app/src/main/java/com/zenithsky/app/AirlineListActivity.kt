@@ -1,4 +1,3 @@
-
 package com.zenithsky.app
 
 import android.content.Intent
@@ -20,10 +19,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,17 +39,29 @@ import com.zenithsky.app.data.model.AirlineDto
 import com.zenithsky.app.data.network.ApiClient
 import com.zenithsky.app.ui.theme.ZenithSkyTheme
 import kotlinx.coroutines.launch
+import com.zenithsky.app.data.local.database.ZenithSkyDatabase
+import com.zenithsky.app.data.local.entity.AirlineLocal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class AirlineListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val database = ZenithSkyDatabase.getDatabase(applicationContext)
+
         setContent {
             ZenithSkyTheme {
                 AirlineListScreen(
+                    database = database,
+                    onBackClick = {
+                        finish()
+                    },
                     onCreateClick = {
-                        startActivity(Intent(this, AirlineFormActivity::class.java))
+                        startActivity(
+                            Intent(this, AirlineFormActivity::class.java)
+                        )
                     },
                     onEditClick = { id ->
                         startActivity(
@@ -59,15 +75,33 @@ class AirlineListActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirlineListScreen(
+    database: ZenithSkyDatabase,
+    onBackClick: () -> Unit,
     onCreateClick: () -> Unit,
     onEditClick: (Int) -> Unit
 ) {
-    var airlines by remember { mutableStateOf<List<AirlineDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var airlineToDelete by remember { mutableStateOf<AirlineDto?>(null) }
+    var airlines by remember {
+        mutableStateOf<List<AirlineDto>>(emptyList())
+    }
+
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    var error by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var airlineToDelete by remember {
+        mutableStateOf<AirlineDto?>(null)
+    }
+
+    var deleteError by remember {
+        mutableStateOf<String?>(null)
+    }
 
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -81,12 +115,41 @@ fun AirlineListScreen(
                 val response = ApiClient.airlineService.getAirlines()
 
                 if (response.isSuccessful) {
-                    airlines = response.body() ?: emptyList()
+
+                    val airlineList = response.body() ?: emptyList()
+
+                    // Actualizar la lista que se muestra en pantalla
+                    airlines = airlineList
+
+                    // Convertir DTOs a entidades locales
+                    val localAirlines = airlineList.map { airline ->
+                        AirlineLocal(
+                            id = airline.airline_id,
+                            iata = airline.iata,
+                            nombre = airline.airlinename,
+                            aeropuertoBaseIata =
+                                airline.base_airport_iata ?: "",
+                            aeropuertoBaseNombre =
+                                airline.base_airport_name ?: ""
+                        )
+                    }
+
+                    // Guardar la copia local en Room
+                    withContext(Dispatchers.IO) {
+                        database.airlineDao()
+                            .reemplazarTodas(localAirlines)
+                    }
+
                 } else {
-                    error = "Error HTTP: ${response.code()}\n${response.errorBody()?.string()}"
+                    error =
+                        "Error HTTP: ${response.code()}\n${response.errorBody()?.string()}"
                 }
+
             } catch (e: Exception) {
-                error = "Error: ${e.javaClass.name}\nDetalle: ${e.message}\nCausa: ${e.cause}"
+                error =
+                    "Error: ${e.javaClass.name}\n" +
+                            "Detalle: ${e.message}\n" +
+                            "Causa: ${e.cause}"
             }
 
             loading = false
@@ -94,7 +157,9 @@ fun AirlineListScreen(
     }
 
     DisposableEffect(lifecycleOwner) {
+
         val observer = LifecycleEventObserver { _, event ->
+
             if (event == Lifecycle.Event.ON_RESUME) {
                 loadAirlines()
             }
@@ -107,92 +172,151 @@ fun AirlineListScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Aerolíneas",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Button(
-            onClick = onCreateClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-        ) {
-            Text("Registrar aerolínea")
-        }
-
-        when {
-            loading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-
-            error != null -> {
-                Text(error ?: "Error desconocido")
-                Button(onClick = { loadAirlines() }) {
-                    Text("Reintentar")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("Aerolíneas")
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBackClick
+                    ) {
+                        Text(
+                            text = "←",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                 }
+            )
+        }
+    ) { innerPadding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp)
+        ) {
+
+            Button(
+                onClick = onCreateClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                Text("Registrar aerolínea")
             }
 
-            airlines.isEmpty() -> {
-                Text("No hay aerolíneas registradas")
-            }
+            when {
 
-            else -> {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(airlines, key = { it.airline_id }) { airline ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(4.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
+                loading -> {
+
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(
+                            Alignment.CenterHorizontally
+                        )
+                    )
+                }
+
+                error != null -> {
+
+                    Text(
+                        text = error ?: "Error desconocido",
+                        color = MaterialTheme.colorScheme.error
+                    )
+
+                    Button(
+                        onClick = {
+                            loadAirlines()
+                        }
+                    ) {
+                        Text("Reintentar")
+                    }
+                }
+
+                airlines.isEmpty() -> {
+
+                    Text("No hay aerolíneas registradas")
+                }
+
+                else -> {
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+
+                        items(
+                            airlines,
+                            key = { it.airline_id }
+                        ) { airline ->
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = 4.dp
+                                )
                             ) {
-                                Text(
-                                    text = airline.airlinename,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
 
-                                Text("Código IATA: ${airline.iata}")
-                                Text(
-                                    "Aeropuerto base: ${airline.base_airport_name ?: "No disponible"}"
-                                )
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 10.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Column(
+                                    modifier = Modifier.padding(16.dp)
                                 ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            onEditClick(airline.airline_id)
-                                        }
-                                    ) {
-                                        Text("Editar")
-                                    }
 
-                                    OutlinedButton(
-                                        onClick = {
-                                            airlineToDelete = airline
-                                        },
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.error
-                                        ),
-                                        border = BorderStroke(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                                        )
+                                    Text(
+                                        text = airline.airlinename,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+
+                                    Text(
+                                        text = "Código IATA: ${airline.iata}"
+                                    )
+
+                                    Text(
+                                        text = "Aeropuerto base: ${
+                                            airline.base_airport_name
+                                                ?: "No disponible"
+                                        }"
+                                    )
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp),
+                                        horizontalArrangement =
+                                            Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Eliminar")
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                onEditClick(
+                                                    airline.airline_id
+                                                )
+                                            }
+                                        ) {
+                                            Text("Editar")
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                airlineToDelete = airline
+                                            },
+                                            colors =
+                                                ButtonDefaults.outlinedButtonColors(
+                                                    contentColor =
+                                                        MaterialTheme
+                                                            .colorScheme
+                                                            .error
+                                                ),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                MaterialTheme
+                                                    .colorScheme
+                                                    .error
+                                                    .copy(alpha = 0.5f)
+                                            )
+                                        ) {
+                                            Text("Eliminar")
+                                        }
                                     }
                                 }
                             }
@@ -204,6 +328,7 @@ fun AirlineListScreen(
     }
 
     airlineToDelete?.let { airline ->
+
         AlertDialog(
             onDismissRequest = {
                 airlineToDelete = null
@@ -212,25 +337,54 @@ fun AirlineListScreen(
                 Text("Eliminar aerolínea")
             },
             text = {
-                Text("¿Deseas eliminar ${airline.airlinename}?")
+                Text(
+                    "¿Deseas eliminar ${airline.airlinename}?"
+                )
             },
             confirmButton = {
+
                 TextButton(
                     onClick = {
+
                         scope.launch {
+
                             try {
-                                val response = ApiClient.airlineService
-                                    .deleteAirline(airline.airline_id)
+
+                                val response =
+                                    ApiClient.airlineService
+                                        .deleteAirline(
+                                            airline.airline_id
+                                        )
 
                                 if (response.isSuccessful) {
+
                                     airlineToDelete = null
+                                    deleteError = null
+
                                     loadAirlines()
+
                                 } else {
-                                    error = "No se pudo eliminar la aerolínea: HTTP ${response.code()}"
+
+                                    deleteError = when (response.code()) {
+
+                                        409 ->
+                                            "No se puede eliminar la aerolínea porque tiene aviones asociados."
+
+                                        404 ->
+                                            "La aerolínea que intentas eliminar no existe."
+
+                                        else ->
+                                            "No se pudo eliminar la aerolínea. Código HTTP: ${response.code()}"
+                                    }
+
                                     airlineToDelete = null
                                 }
+
                             } catch (e: Exception) {
-                                error = "Error: ${e.javaClass.name}\nDetalle: ${e.message}\nCausa: ${e.cause}"
+
+                                deleteError =
+                                    "No se pudo conectar con el servidor."
+
                                 airlineToDelete = null
                             }
                         }
@@ -240,12 +394,38 @@ fun AirlineListScreen(
                 }
             },
             dismissButton = {
+
                 TextButton(
                     onClick = {
                         airlineToDelete = null
                     }
                 ) {
                     Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    deleteError?.let { message ->
+
+        AlertDialog(
+            onDismissRequest = {
+                deleteError = null
+            },
+            title = {
+                Text("No se puede eliminar")
+            },
+            text = {
+                Text(message)
+            },
+            confirmButton = {
+
+                TextButton(
+                    onClick = {
+                        deleteError = null
+                    }
+                ) {
+                    Text("Aceptar")
                 }
             }
         )
