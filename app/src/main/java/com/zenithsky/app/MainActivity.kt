@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
                 if (hasPermission.value) {
                     MainMenu(
                         onAirportsClick = {
-                            startActivity(Intent(this, AirportActivity::class.java))
+                            startActivity(Intent(this, AirportListActivity::class.java))
                         },
                         onAirlinesClick = {
                             startActivity(Intent(this, AirlineListActivity::class.java))
