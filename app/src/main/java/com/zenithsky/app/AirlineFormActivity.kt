@@ -38,7 +38,6 @@ class AirlineFormActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirlineFormScreen(
     airlineId: Int,
@@ -80,6 +79,9 @@ fun AirlineFormScreen(
     val scope = rememberCoroutineScope()
 
     val editing = airlineId != -1
+    var initialIata by remember { mutableStateOf("") }
+    var initialName by remember { mutableStateOf("") }
+    var initialAirportId by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(airlineId) {
 
@@ -121,6 +123,9 @@ fun AirlineFormScreen(
                                 it.airport_id ==
                                         airline.base_airport
                             }
+                        initialIata = iata
+                        initialName = airlineName
+                        initialAirportId = selectedAirport?.airport_id
                     }
 
                 } else {
@@ -139,34 +144,14 @@ fun AirlineFormScreen(
         loading = false
     }
 
-    Scaffold(
-        topBar = {
-
-            TopAppBar(
-
-                title = {
-                    Text(
-                        if (editing)
-                            "Editar aerolínea"
-                        else
-                            "Registrar aerolínea"
-                    )
-                },
-
-                navigationIcon = {
-
-                    IconButton(
-                        onClick = onFinish
-                    ) {
-                        Text(
-                            text = "←",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    ZenithNavigationScaffold(
+        currentDestination = ZenithDestination.AIRLINES,
+        title = { Text(if (editing) "Editar aerolínea" else "Registrar aerolínea") },
+        hasUnsavedChanges = iata != initialIata || airlineName != initialName ||
+            selectedAirport?.airport_id != initialAirportId,
+        navigationLocked = saving,
+        onFormExit = onFinish
+    ) { innerPadding, requestFormExit ->
 
         Column(
 
@@ -444,7 +429,7 @@ fun AirlineFormScreen(
 
                 OutlinedButton(
 
-                    onClick = onFinish,
+                    onClick = requestFormExit,
 
                     modifier =
                         Modifier.fillMaxWidth()

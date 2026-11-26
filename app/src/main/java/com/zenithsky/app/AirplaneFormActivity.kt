@@ -25,14 +25,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -104,7 +101,6 @@ class AirplaneFormActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirplaneFormScreen(
     airplaneId: Int?,
@@ -119,6 +115,9 @@ fun AirplaneFormScreen(
     var selectedTypeId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedAirlineId by rememberSaveable { mutableStateOf<Int?>(null) }
     var showValidationErrors by rememberSaveable { mutableStateOf(false) }
+    var initialCapacity by rememberSaveable { mutableStateOf("") }
+    var initialTypeId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var initialAirlineId by rememberSaveable { mutableStateOf<Int?>(null) }
 
     var airplaneTypes by remember { mutableStateOf<List<AirplaneTypeDto>>(emptyList()) }
     var airlines by remember { mutableStateOf<List<AirlineDto>>(emptyList()) }
@@ -148,6 +147,9 @@ fun AirplaneFormScreen(
                 if (capacityText.isBlank()) capacityText = airplane.capacity.toString()
                 if (selectedTypeId == null) selectedTypeId = airplane.type_id
                 if (selectedAirlineId == null) selectedAirlineId = airplane.airline_id
+                initialCapacity = airplane.capacity.toString()
+                initialTypeId = airplane.type_id
+                initialAirlineId = airplane.airline_id
                 isAirplaneLoaded = true
             } else {
                 Log.e(AIRPLANE_FORM_TAG, "Error HTTP al cargar el avión $airplaneId: ${response.code()}")
@@ -284,18 +286,19 @@ fun AirplaneFormScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isEditMode) "Editar avión" else "Agregar avión",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                }
+    ZenithNavigationScaffold(
+        currentDestination = ZenithDestination.AIRPLANES,
+        title = {
+            Text(
+                text = if (isEditMode) "Editar avión" else "Agregar avión",
+                style = MaterialTheme.typography.headlineMedium
             )
-        }
-    ) { innerPadding ->
+        },
+        hasUnsavedChanges = capacityText != initialCapacity || selectedTypeId != initialTypeId ||
+            selectedAirlineId != initialAirlineId,
+        navigationLocked = isSaving,
+        onFormExit = onCancel
+    ) { innerPadding, requestFormExit ->
 
         Column(
             modifier = Modifier
@@ -387,7 +390,7 @@ fun AirplaneFormScreen(
             }
 
             OutlinedButton(
-                onClick = onCancel,
+                onClick = requestFormExit,
                 enabled = !isSaving,
                 modifier = Modifier.fillMaxWidth()
             ) {

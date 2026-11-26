@@ -2,7 +2,6 @@
 package com.zenithsky.app
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -27,10 +26,7 @@ import com.zenithsky.app.ui.theme.ZenithSkyTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.zenithsky.app.data.local.database.ZenithSkyDatabase
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBar
 
 class MainActivity : ComponentActivity() {
 
@@ -88,57 +84,45 @@ class MainActivity : ComponentActivity() {
                         airplaneCount = airplanes.size,
                         operationCount = operations.size,
 
-                        onAirportsClick = {
-                            startActivity(
-                                Intent(
-                                    this,
-                                    AirportActivity::class.java
-                                )
-                            )
-                        },
+                        onAirportsClick = { navigateToZenithDestination(ZenithDestination.AIRPORTS) },
 
-                        onAirlinesClick = {
-                            startActivity(
-                                Intent(
-                                    this,
-                                    AirlineListActivity::class.java
-                                )
-                            )
-                        },
+                        onAirlinesClick = { navigateToZenithDestination(ZenithDestination.AIRLINES) },
 
-                        onAirplanesClick = {
-                            startActivity(
-                                Intent(
-                                    this,
-                                    AirplaneListActivity::class.java
-                                )
-                            )
-                        }
+                        onAirplanesClick = { navigateToZenithDestination(ZenithDestination.AIRPLANES) }
                     )
 
                 } else {
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-
-                        Text(
-                            "ZenithSky necesita permiso para conectarse al servidor local."
-                        )
-
-                        Button(
-                            onClick = {
-                                permissionLauncher.launch(
-                                    "android.permission.ACCESS_LOCAL_NETWORK"
-                                )
-                            },
-                            modifier = Modifier.padding(top = 16.dp)
+                    ZenithNavigationScaffold(
+                        currentDestination = ZenithDestination.HOME,
+                        title = { Text("ZenithSky") },
+                        onPermissionNeeded = {
+                            permissionLauncher.launch("android.permission.ACCESS_LOCAL_NETWORK")
+                        }
+                    ) { innerPadding, _ ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Text("Conceder permiso")
+
+                            Text(
+                                "ZenithSky necesita permiso para conectarse al servidor local."
+                            )
+
+                            Button(
+                                onClick = {
+                                    permissionLauncher.launch(
+                                        "android.permission.ACCESS_LOCAL_NETWORK"
+                                    )
+                                },
+                                modifier = Modifier.padding(top = 16.dp)
+                            ) {
+                                Text("Conceder permiso")
+                            }
                         }
                     }
                 }
@@ -147,7 +131,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenu(
     airlineCount: Int,
@@ -157,15 +140,10 @@ fun MainMenu(
     onAirlinesClick: () -> Unit,
     onAirplanesClick: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text("ZenithSky")
-                }
-            )
-        }
-    ) { innerPadding ->
+    ZenithNavigationScaffold(
+        currentDestination = ZenithDestination.HOME,
+        title = { Text("ZenithSky") }
+    ) { innerPadding, _ ->
 
         Column(
             modifier = Modifier
