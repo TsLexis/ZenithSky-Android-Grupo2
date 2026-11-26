@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,15 +20,17 @@ class AirportActivity : ComponentActivity() {
         setContent {
             ZenithSkyTheme {
 
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-
-                    Text(
-                        text = "Módulo de Aeropuertos"
-                    )
+                ZenithNavigationScaffold(
+                    currentDestination = ZenithDestination.AIRPORTS,
+                    title = { Text("Aeropuertos") }
+                ) { innerPadding, _ ->
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("Módulo de Aeropuertos")
+                    }
                 }
             }
         }

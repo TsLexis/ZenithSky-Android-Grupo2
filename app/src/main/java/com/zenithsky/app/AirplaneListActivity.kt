@@ -35,14 +35,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -95,19 +92,16 @@ class AirplaneListActivity : ComponentActivity() {
         setContent {
             ZenithSkyTheme {
                 AirplaneListScreen(
-                    database = database,
-                    onBackClick = { finish() }
+                    database = database
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirplaneListScreen(
-    database: ZenithSkyDatabase,
-    onBackClick: () -> Unit
+    database: ZenithSkyDatabase
 ) {
 
     var airplanes by remember { mutableStateOf<List<AirplaneDto>>(emptyList()) }
@@ -283,28 +277,10 @@ fun AirplaneListScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Aviones",
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBackClick
-                    ) {
-                        Text(
-                            text = "←",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    ZenithNavigationScaffold(
+        currentDestination = ZenithDestination.AIRPLANES,
+        title = { Text("Aviones", style = MaterialTheme.typography.headlineMedium) }
+    ) { innerPadding, _ ->
 
         Column(
             modifier = Modifier
