@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                             startActivity(Intent(this, AirlineListActivity::class.java))
                         },
                         onAirplanesClick = {
-                            startActivity(Intent(this, AirplaneActivity::class.java))
+                            startActivity(Intent(this, AirplaneListActivity::class.java))
                         },
                         onAirplaneTypesClick = {
                             startActivity(Intent(this, AirplaneTypeActivity::class.java))

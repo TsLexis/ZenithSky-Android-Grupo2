@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,12 +29,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -278,19 +280,13 @@ fun AirplaneListScreen(database: ZenithSkyDatabase) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Aviones") }
-            )
-        },
-        floatingActionButton = {
-            if (hasNetworkPermission) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        formLauncher.launch(Intent(context, AirplaneFormActivity::class.java))
-                    }
-                ) {
-                    Text("Agregar avión")
+                title = {
+                    Text(
+                        text = "Aviones",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
                 }
-            }
+            )
         }
     ) { innerPadding ->
 
@@ -301,10 +297,21 @@ fun AirplaneListScreen(database: ZenithSkyDatabase) {
                 .padding(horizontal = 16.dp)
         ) {
 
+            if (hasNetworkPermission) {
+                Button(
+                    onClick = {
+                        formLauncher.launch(Intent(context, AirplaneFormActivity::class.java))
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text("Agregar avión")
+                }
+            }
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AirplaneFilterDropdown(
@@ -390,8 +397,8 @@ fun AirplaneListScreen(database: ZenithSkyDatabase) {
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             LazyColumn(
-                                contentPadding = PaddingValues(bottom = 88.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                contentPadding = PaddingValues(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 items(favorites, key = { it.id }) { favorite ->
                                     FavoriteAirplaneItem(
@@ -427,8 +434,8 @@ fun AirplaneListScreen(database: ZenithSkyDatabase) {
 
                     else -> {
                         LazyColumn(
-                            contentPadding = PaddingValues(bottom = 88.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            contentPadding = PaddingValues(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(airplanes, key = { it.airplane_id }) { airplane ->
                                 AirplaneItem(
@@ -564,7 +571,8 @@ fun AirplaneItem(
 ) {
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -573,7 +581,6 @@ fun AirplaneItem(
                 Text(
                     text = "Avión #${airplane.airplane_id}",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
                 onToggleFavorite?.let {
@@ -581,26 +588,35 @@ fun AirplaneItem(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
             Text("Capacidad: ${airplane.capacity} pasajeros")
-            Text("Tipo: ${airplane.identifier ?: "No disponible"}")
+            Text("Tipo de avión: ${airplane.identifier ?: "No disponible"}")
             Text("Descripción: ${airplane.description ?: "No disponible"}")
             Text("Aerolínea: ${airplane.airlinename ?: "No disponible"}")
 
             if (onEdit != null || onDelete != null) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     onEdit?.let {
-                        TextButton(onClick = it) {
+                        OutlinedButton(onClick = it) {
                             Text("Editar")
                         }
                     }
                     onDelete?.let {
-                        TextButton(onClick = it) {
-                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        OutlinedButton(
+                            onClick = it,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text("Eliminar")
                         }
                     }
                 }
@@ -650,7 +666,8 @@ private fun FavoriteAirplaneItem(
 ) {
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -659,8 +676,7 @@ private fun FavoriteAirplaneItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Avión #${favorite.id}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text("Modelo: ${favorite.modelo}")
                 Text("Capacidad: ${favorite.capacidad} pasajeros")

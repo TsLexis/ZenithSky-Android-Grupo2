@@ -5,12 +5,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,12 +21,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zenithsky.app.data.local.database.ZenithSkyDatabase
 import com.zenithsky.app.data.local.entity.OperacionLog
@@ -284,7 +287,12 @@ fun AirplaneFormScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditMode) "Editar avión" else "Agregar avión") }
+                title = {
+                    Text(
+                        text = if (isEditMode) "Editar avión" else "Agregar avión",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                }
             )
         }
     ) { innerPadding ->
@@ -293,9 +301,9 @@ fun AirplaneFormScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
 
             if (isLoadingCatalogs || isLoadingAirplane) {
@@ -405,7 +413,7 @@ fun AirplaneFormFields(
     enabled: Boolean
 ) {
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
         OutlinedTextField(
             value = capacityText,
@@ -447,7 +455,6 @@ fun AirplaneFormFields(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AirplaneSelectorField(
     label: String,
@@ -459,53 +466,60 @@ private fun AirplaneSelectorField(
 ) {
 
     var expanded by remember { mutableStateOf(false) }
-    val selectedText = options.firstOrNull { it.first == selectedId }?.second.orEmpty()
+    val selectedText = options.firstOrNull { it.first == selectedId }?.second
 
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { if (enabled) expanded = it }
-    ) {
-        OutlinedTextField(
-            value = selectedText,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            singleLine = true,
-            label = { Text(label) },
-            placeholder = { Text("Seleccione una opción") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            isError = errorMessage != null,
-            supportingText = if (errorMessage != null) {
-                { Text(errorMessage) }
-            } else {
-                null
-            },
-            modifier = Modifier
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled)
-                .fillMaxWidth()
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label)
 
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            if (options.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("No hay opciones disponibles") },
-                    onClick = { expanded = false },
-                    enabled = false
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                enabled = enabled,
+                border = if (errorMessage != null) {
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                } else {
+                    ButtonDefaults.outlinedButtonBorder(enabled)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = selectedText ?: "Seleccionar ${label.lowercase()}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            options.forEach { (id, text) ->
-                DropdownMenuItem(
-                    text = { Text(text) },
-                    onClick = {
-                        onSelected(id)
-                        expanded = false
-                    }
-                )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.heightIn(max = 300.dp)
+            ) {
+                if (options.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("No hay opciones disponibles") },
+                        onClick = { expanded = false },
+                        enabled = false
+                    )
+                }
+
+                options.forEach { (id, text) ->
+                    DropdownMenuItem(
+                        text = { Text(text) },
+                        onClick = {
+                            onSelected(id)
+                            expanded = false
+                        }
+                    )
+                }
             }
+        }
+
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
