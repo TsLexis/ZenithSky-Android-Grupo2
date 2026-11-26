@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity() {
                             startActivity(
                                 Intent(
                                     this,
-                                    AirportActivity::class.java
+                                    AirportListActivity::class.java
                                 )
                             )
                         },
