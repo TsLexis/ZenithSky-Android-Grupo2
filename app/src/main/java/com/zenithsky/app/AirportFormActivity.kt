@@ -75,125 +75,134 @@ fun AirportFormScreen(
         loading = false
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = if (editing) "Editar aeropuerto"
-            else "Registrar aeropuerto",
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        if (loading) {
-            CircularProgressIndicator()
-        } else {
-            OutlinedTextField(
-                value = iata,
-                onValueChange = {
-                    iata = it.uppercase().take(3)
-                },
-                label = { Text("Código IATA") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+    ZenithNavigationScaffold(
+        currentDestination = ZenithDestination.AIRPORTS,
+        title = {
+            Text(
+                text = if (editing) "Editar aeropuerto"
+                else "Registrar aeropuerto",
+                style = MaterialTheme.typography.headlineMedium
             )
+        }
+    ) { innerPadding, _ ->
 
-            OutlinedTextField(
-                value = icao,
-                onValueChange = {
-                    icao = it.uppercase().take(4)
-                },
-                label = { Text("Código ICAO") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(innerPadding)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
 
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Nombre del aeropuerto") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            if (loading) {
+                CircularProgressIndicator()
+            } else {
 
-            error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error
+                OutlinedTextField(
+                    value = iata,
+                    onValueChange = {
+                        iata = it.uppercase().take(3)
+                    },
+                    label = { Text("Código IATA") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
-            }
 
-            Button(
-                onClick = {
-                    when {
-                        iata.length != 3 ->
-                            error = "El código IATA debe tener 3 caracteres"
+                OutlinedTextField(
+                    value = icao,
+                    onValueChange = {
+                        icao = it.uppercase().take(4)
+                    },
+                    label = { Text("Código ICAO") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
-                        icao.length != 4 ->
-                            error = "El código ICAO debe tener 4 caracteres"
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nombre del aeropuerto") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
 
-                        name.isBlank() ->
-                            error = "Ingresa el nombre del aeropuerto"
+                error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
 
-                        else -> {
-                            scope.launch {
-                                saving = true
-                                error = null
+                Button(
+                    onClick = {
+                        when {
+                            iata.length != 3 ->
+                                error = "El código IATA debe tener 3 caracteres"
 
-                                try {
-                                    val airport = AirportDto(
-                                        airport_id = if (editing) airportId else 0,
-                                        iata = iata.trim(),
-                                        icao = icao.trim(),
-                                        name = name.trim()
-                                    )
+                            icao.length != 4 ->
+                                error = "El código ICAO debe tener 4 caracteres"
 
-                                    val response = if (editing) {
-                                        ApiClient.airportService.updateAirport(
-                                            airportId,
-                                            airport
+                            name.isBlank() ->
+                                error = "Ingresa el nombre del aeropuerto"
+
+                            else -> {
+                                scope.launch {
+                                    saving = true
+                                    error = null
+
+                                    try {
+                                        val airport = AirportDto(
+                                            airport_id = if (editing) airportId else 0,
+                                            iata = iata.trim(),
+                                            icao = icao.trim(),
+                                            name = name.trim()
                                         )
-                                    } else {
-                                        ApiClient.airportService.createAirport(
-                                            airport
-                                        )
-                                    }
 
-                                    if (response.isSuccessful) {
-                                        onFinish()
-                                    } else {
-                                        error = when (response.code()) {
-                                            409 -> "No se pudo guardar: existe un conflicto con los datos"
-                                            else -> "No se pudo guardar. Código: ${response.code()}"
+                                        val response = if (editing) {
+                                            ApiClient.airportService.updateAirport(
+                                                airportId,
+                                                airport
+                                            )
+                                        } else {
+                                            ApiClient.airportService.createAirport(
+                                                airport
+                                            )
                                         }
-                                    }
-                                } catch (e: Exception) {
-                                    error = "Error de conexión: ${e.message}"
-                                }
 
-                                saving = false
+                                        if (response.isSuccessful) {
+                                            onFinish()
+                                        } else {
+                                            error = when (response.code()) {
+                                                409 -> "No se pudo guardar: existe un conflicto con los datos"
+                                                else -> "No se pudo guardar. Código: ${response.code()}"
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        error = "Error de conexión: ${e.message}"
+                                    }
+
+                                    saving = false
+                                }
                             }
                         }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !saving
-            ) {
-                Text(
-                    if (saving) "Guardando..."
-                    else if (editing) "Actualizar"
-                    else "Registrar"
-                )
-            }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !saving
+                ) {
+                    Text(
+                        if (saving) "Guardando..."
+                        else if (editing) "Actualizar"
+                        else "Registrar"
+                    )
+                }
 
-            OutlinedButton(
-                onClick = onFinish,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cancelar")
+                OutlinedButton(
+                    onClick = onFinish,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancelar")
+                }
             }
         }
     }

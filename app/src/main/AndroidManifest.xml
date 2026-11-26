@@ -32,10 +32,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".AirportActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".AirportListActivity"
             android:exported="false" />
 
