@@ -64,9 +64,6 @@ class MainActivity : ComponentActivity() {
                         },
                         onAirplanesClick = {
                             startActivity(Intent(this, AirplaneListActivity::class.java))
-                        },
-                        onAirplaneTypesClick = {
-                            startActivity(Intent(this, AirplaneTypeActivity::class.java))
                         }
                     )
                 } else {
@@ -100,8 +97,7 @@ class MainActivity : ComponentActivity() {
 fun MainMenu(
     onAirportsClick: () -> Unit,
     onAirlinesClick: () -> Unit,
-    onAirplanesClick: () -> Unit,
-    onAirplaneTypesClick: () -> Unit
+    onAirplanesClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -131,13 +127,6 @@ fun MainMenu(
             modifier = Modifier.padding(top = 10.dp)
         ) {
             Text("Aviones")
-        }
-
-        Button(
-            onClick = onAirplaneTypesClick,
-            modifier = Modifier.padding(top = 10.dp)
-        ) {
-            Text("Tipos de avión")
         }
     }
 }

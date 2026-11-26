@@ -20,14 +20,6 @@
             android:exported="false" />
 
         <activity
-            android:name=".AirplaneTypeActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".AirplaneActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".AirplaneListActivity"
             android:exported="false" />
 
