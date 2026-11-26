@@ -53,7 +53,7 @@ internal enum class ZenithDestination(
     ),
     AIRPORTS(
         "Aeropuertos",
-        AirportActivity::class.java,
+        AirportListActivity::class.java,
         drawerIcon(
             "Aeropuertos",
             "M3 19h18v2H3zM4 14l-2-4 1.5-.4L6 12l4-.9L7 5l2-.5 5 5.7 5.2-1.3a1.5 1.5 0 0 1 .7 2.9L6 15z"

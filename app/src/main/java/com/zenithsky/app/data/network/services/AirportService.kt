@@ -31,7 +31,7 @@ interface AirportService {
     suspend fun updateAirport(
         @Path("id") id: Int,
         @Body airport: AirportDto
-    ): Response<AirportDto>
+    ): Response<String>
 
     @DELETE("api/airports/{id}")
     suspend fun deleteAirport(

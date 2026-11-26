@@ -32,7 +32,11 @@
             android:exported="false" />
 
         <activity
-            android:name=".AirportActivity"
+            android:name=".AirportListActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AirportFormActivity"
             android:exported="false" />
 
         <activity
